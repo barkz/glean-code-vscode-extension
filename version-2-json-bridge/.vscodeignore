@@ -1,0 +1,18 @@
+# Sources and build config — the compiled output in out/ is what ships.
+src/**
+tsconfig.json
+**/*.ts
+**/*.map
+
+# Dev-only
+.vscode/**
+.vscode-test/**
+node_modules/**
+.gitignore
+*.vsix
+
+# Repo-level docs that don't belong in the package
+../docs/**
+
+# Integration tests are dev-only
+out/test/**

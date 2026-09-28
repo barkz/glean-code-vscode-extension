@@ -1,0 +1,175 @@
+:root {
+  --gc-bg: var(--vscode-sideBar-background);
+  --gc-fg: var(--vscode-foreground);
+  --gc-muted: var(--vscode-descriptionForeground);
+  --gc-border: var(--vscode-panel-border);
+  --gc-input-bg: var(--vscode-input-background);
+  --gc-input-fg: var(--vscode-input-foreground);
+  --gc-button-bg: var(--vscode-button-background);
+  --gc-button-fg: var(--vscode-button-foreground);
+  --gc-button-hover: var(--vscode-button-hoverBackground);
+  --gc-accent: var(--vscode-textLink-foreground);
+  --gc-error: var(--vscode-errorForeground);
+  --gc-mono: var(--vscode-editor-font-family, ui-monospace, monospace);
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--gc-bg);
+  color: var(--gc-fg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  display: flex;
+  flex-direction: column;
+}
+
+.gc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--gc-border);
+  flex: 0 0 auto;
+}
+
+.gc-title {
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.gc-tag {
+  background: var(--gc-button-bg);
+  color: var(--gc-button-fg);
+  border-radius: 3px;
+  font-size: 10px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.gc-actions button,
+#gc-suggest button {
+  background: transparent;
+  color: var(--gc-fg);
+  border: 1px solid var(--gc-border);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.gc-actions button:hover {
+  background: var(--gc-button-hover);
+  color: var(--gc-button-fg);
+}
+
+#gc-history {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 10px 4px;
+  font-family: var(--gc-mono);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.gc-msg {
+  margin: 4px 0 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gc-msg-user {
+  background: rgba(127, 127, 127, 0.08);
+  border-left: 2px solid var(--gc-accent);
+}
+
+.gc-msg-stdout {
+  background: transparent;
+  border-left: 2px solid transparent;
+}
+
+.gc-msg-stderr {
+  color: var(--gc-error);
+  background: rgba(255, 80, 80, 0.06);
+  border-left: 2px solid var(--gc-error);
+}
+
+.gc-msg-system {
+  color: var(--gc-muted);
+  font-style: italic;
+}
+
+.gc-prompt {
+  color: var(--gc-accent);
+  font-weight: 600;
+}
+
+#gc-suggest {
+  border-top: 1px solid var(--gc-border);
+  background: var(--gc-bg);
+  padding: 4px 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+#gc-suggest button {
+  font-family: var(--gc-mono);
+  font-size: 11px;
+}
+
+#gc-suggest button.active {
+  background: var(--gc-button-bg);
+  color: var(--gc-button-fg);
+}
+
+#gc-form {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--gc-border);
+  flex: 0 0 auto;
+}
+
+#gc-input {
+  flex: 1 1 auto;
+  resize: vertical;
+  min-height: 32px;
+  font-family: var(--gc-mono);
+  font-size: 12px;
+  background: var(--gc-input-bg);
+  color: var(--gc-input-fg);
+  border: 1px solid var(--gc-border);
+  border-radius: 3px;
+  padding: 6px 8px;
+}
+
+#gc-input:focus {
+  outline: 1px solid var(--gc-accent);
+  outline-offset: -1px;
+}
+
+#gc-send {
+  background: var(--gc-button-bg);
+  color: var(--gc-button-fg);
+  border: 0;
+  border-radius: 3px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+#gc-send:hover {
+  background: var(--gc-button-hover);
+}
+
+a {
+  color: var(--gc-accent);
+}

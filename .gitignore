@@ -1,0 +1,21 @@
+# Build output
+out/
+dist/
+*.vsix
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Editor / tooling state
+.claude/
+.vscode-test/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# macOS
+.DS_Store

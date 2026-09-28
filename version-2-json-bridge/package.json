@@ -1,0 +1,133 @@
+{
+  "name": "glean-code-bridge",
+  "displayName": "Glean Code (JSON Bridge)",
+  "description": "VS Code panel that talks to glean_code.client over a JSON-RPC subprocess.",
+  "version": "0.1.0",
+  "publisher": "barkz",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gleanCodeBridgeContainer",
+          "title": "Glean Code",
+          "icon": "resources/glean.svg"
+        }
+      ]
+    },
+    "views": {
+      "gleanCodeBridgeContainer": [
+        {
+          "type": "webview",
+          "id": "gleanCodeBridge.chatView",
+          "name": "Chat",
+          "icon": "resources/glean.svg",
+          "contextualTitle": "Glean Code"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gleanCodeBridge.focusChat",
+        "title": "Glean Code: Focus Chat",
+        "category": "Glean Code"
+      },
+      {
+        "command": "gleanCodeBridge.restartBridge",
+        "title": "Glean Code: Restart Bridge",
+        "category": "Glean Code"
+      },
+      {
+        "command": "gleanCodeBridge.search",
+        "title": "Glean Code: Search...",
+        "category": "Glean Code"
+      },
+      {
+        "command": "gleanCodeBridge.chat",
+        "title": "Glean Code: Chat...",
+        "category": "Glean Code"
+      },
+      {
+        "command": "gleanCodeBridge.status",
+        "title": "Glean Code: Status",
+        "category": "Glean Code"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "gleanCodeBridge.focusChat",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g"
+      },
+      {
+        "command": "gleanCodeBridge.search",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      }
+    ],
+    "configuration": {
+      "title": "Glean Code (Bridge)",
+      "properties": {
+        "gleanCodeBridge.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python 3 interpreter used to run the JSON bridge."
+        },
+        "gleanCodeBridge.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to glean-code-cli (the dir that contains glean_code/)."
+        },
+        "gleanCodeBridge.extraEnv": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "package": "mkdir -p dist && vsce package --no-dependencies --out dist/",
+    "clean": "rm -rf out dist",
+    "test": "../tools/test-extension.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^3.2.0"
+  },
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/barkz/glean-code-vscode-extension.git",
+    "directory": "version-2-json-bridge"
+  },
+  "bugs": {
+    "url": "https://github.com/barkz/glean-code-vscode-extension/issues"
+  },
+  "homepage": "https://github.com/barkz/glean-code-vscode-extension/tree/main/version-2-json-bridge#readme",
+  "keywords": [
+    "glean",
+    "enterprise search",
+    "chat",
+    "json-rpc"
+  ],
+  "galleryBanner": {
+    "color": "#1a1a1a",
+    "theme": "dark"
+  }
+}
