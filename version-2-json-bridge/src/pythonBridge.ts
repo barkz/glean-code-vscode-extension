@@ -92,8 +92,14 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
    * import glean_code. Returns null when no path is needed because the
    * interpreter already resolves it (pip install, site-packages, venv).
    *
-   * Order matters: explicit config first, then env, then the interpreter's own
-   * view, then an installed zipapp, then the workspace, then the dev tree.
+   * Order matters: explicit config first, then env, then the zipapp bundled
+   * inside this extension, then the interpreter's own view, then an installed
+   * zipapp, then the workspace, then the dev tree.
+   *
+   * The bundled archive sits ahead of auto-discovery on purpose: a published
+   * .vsix should run the client version its JSON contract was built against,
+   * not whatever happens to be on the machine. Set gleanCodeBridge.cliPath to
+   * override it while developing against a working tree.
    */
   private resolveSourceRoot(python: string):
     | { pythonPath: string | null; label: string }
@@ -121,6 +127,14 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
       }
       tried.push(`GLEAN_CODE_HOME=${fromEnv}`);
     }
+
+    // Shipped inside the .vsix by scripts/bundle-cli.mjs. This is the path that
+    // makes the extension work with no configuration at all.
+    const bundled = path.join(this.context.extensionPath, "bundled", "glean-code.pyz");
+    if (this.isImportRoot(bundled)) {
+      return { pythonPath: bundled, label: `bundled zipapp (${bundled})` };
+    }
+    tried.push("bundled/glean-code.pyz inside the extension");
 
     if (this.importsCleanly(python)) {
       return { pythonPath: null, label: `${python} already imports glean_code` };
@@ -169,7 +183,9 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
       error:
         "Could not find the glean_code package. Tried:\n  - " +
         tried.join("\n  - ") +
-        "\n\nFix it with any one of:\n" +
+        "\n\nThe extension normally ships its own copy, so this usually means a " +
+        "broken package. Fix it with any one of:\n" +
+        "  - Reinstall the extension (its bundled/glean-code.pyz is missing)\n" +
         "  - Set gleanCodeBridge.cliPath to your glean-code-cli checkout\n" +
         "  - Run `python3 install.py` in glean-code-cli (installs the `glean` zipapp)\n" +
         "  - Open glean-code-cli as a folder in this window",

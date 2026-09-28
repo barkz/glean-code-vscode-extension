@@ -5,6 +5,7 @@ tsconfig.json
 **/*.map
 
 # Dev-only
+scripts/**
 .vscode/**
 .vscode-test/**
 node_modules/**

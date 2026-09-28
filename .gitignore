@@ -19,3 +19,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Vendored CLI zipapp — rebuilt by scripts/bundle-cli.mjs on every package
+version-2-json-bridge/bundled/
