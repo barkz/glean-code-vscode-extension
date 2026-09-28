@@ -20,6 +20,7 @@ import sys
 import traceback
 from typing import Any, Callable, Dict
 
+import glean_code
 from glean_code.client import GleanClient, GleanError
 from glean_code.config import Config
 
@@ -51,6 +52,11 @@ def _refresh() -> None:
 
 def status(_: Dict[str, Any]) -> Dict[str, Any]:
     return {
+        # Which glean_code answered, and from where. The extension compares this
+        # against the version it bundled, so a stale or mismatched client is
+        # visible instead of silently serving old behaviour.
+        "client_version": getattr(glean_code, "__version__", "unknown"),
+        "client_path": getattr(glean_code, "__file__", "unknown"),
         "instance": _config.instance,
         "base_url": _config.effective_base_url,
         "has_api_token": bool(_config.api_token),

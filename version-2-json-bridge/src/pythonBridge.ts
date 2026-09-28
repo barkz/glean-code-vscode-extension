@@ -34,6 +34,7 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
   private nextId = 1;
   private outputChannel: vscode.OutputChannel;
   private startPromise: Promise<void> | null = null;
+  private versionWarned = false;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     super();
@@ -72,6 +73,58 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
       /* unreadable — not a candidate */
     }
     return false;
+  }
+
+  /** The glean_code version this .vsix shipped, per bundled/cli-version.json. */
+  private bundledVersion(): string | null {
+    try {
+      const stamp = path.join(this.context.extensionPath, "bundled", "cli-version.json");
+      return JSON.parse(fs.readFileSync(stamp, "utf8")).version ?? null;
+    } catch {
+      return null;   // not bundled (dev checkout), nothing to compare against
+    }
+  }
+
+  /**
+   * Compare the client the bridge actually loaded against the one we shipped.
+   *
+   * The bundle only refreshes when the extension is packaged, so between
+   * packages it silently lags the CLI. A cliPath override can also point at a
+   * different tree entirely. Either way the mismatch is worth saying out loud
+   * rather than serving old behaviour quietly.
+   */
+  private checkClientVersion(status: any): void {
+    const running = status?.client_version;
+    const from = status?.client_path;
+    if (!running) return;          // older bridge, nothing to check
+
+    this.outputChannel.appendLine(`[bridge] glean_code ${running} from ${from}`);
+
+    const shipped = this.bundledVersion();
+    if (!shipped || shipped === running) return;
+
+    const msg =
+      `Glean Code is running client ${running}, but this extension bundled ${shipped}.`;
+    this.outputChannel.appendLine(`[bridge] ${msg}`);
+
+    // A cliPath override is a deliberate choice, so note it without nagging.
+    const override = (vscode.workspace
+      .getConfiguration("gleanCodeBridge")
+      .get<string>("cliPath") || "").trim();
+    if (override) {
+      this.outputChannel.appendLine(
+        `[bridge] expected — gleanCodeBridge.cliPath points at ${override}`,
+      );
+      return;
+    }
+
+    if (this.versionWarned) return;
+    this.versionWarned = true;
+    vscode.window
+      .showWarningMessage(`${msg} Repackage the extension to refresh it.`, "Show Log")
+      .then((choice) => {
+        if (choice === "Show Log") this.outputChannel.show(true);
+      });
   }
 
   /** True if the interpreter can already `import glean_code` with no help. */
@@ -256,6 +309,7 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
           try {
             const obj = JSON.parse(line);
             if (obj.event === "ready") {
+              this.checkClientVersion(obj.data);
               this.emit("ready", obj.data);
               if (!resolvedReady) {
                 resolvedReady = true;

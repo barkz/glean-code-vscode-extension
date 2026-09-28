@@ -16,7 +16,7 @@
  *   GLEAN_CODE_HOME=<path> node scripts/bundle-cli.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, copyFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, copyFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,6 +101,11 @@ try {
     encoding: "utf8",
   });
   const version = ver.status === 0 ? ver.stdout.trim() : "unknown";
+  if (version === "unknown") {
+    console.error("bundle-cli: could not read glean_code.__version__ from the bundle.");
+    rmSync(OUT_PYZ, { force: true });
+    process.exit(1);
+  }
 
   // Prove the archive is importable before we call this a success — a zipapp
   // that cannot be imported would fail at runtime instead of at build time.
@@ -114,8 +119,18 @@ try {
     process.exit(1);
   }
 
+  // Stamp what was shipped. The extension reads this at activation and compares
+  // it against the version the bridge actually loads, so a stale bundle or a
+  // stray cliPath override is reported rather than silently serving old code.
+  const stamp = path.join(OUT_DIR, "cli-version.json");
+  writeFileSync(
+    stamp,
+    JSON.stringify({ version, bundledAt: new Date().toISOString(), source: cli }, null, 2) + "\n",
+  );
+
   console.log(`bundle-cli: bundled glean_code ${version} (${kb} KB) from ${cli}`);
   console.log(`bundle-cli: -> ${path.relative(EXT_ROOT, OUT_PYZ)}`);
+  console.log(`bundle-cli: -> ${path.relative(EXT_ROOT, stamp)} (version ${version})`);
 } finally {
   rmSync(staging, { recursive: true, force: true });
 }
