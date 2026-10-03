@@ -72,6 +72,22 @@ once in your `glean-code-cli` checkout, which covers step 5.
 
 If none match, the panel tells you what it tried and offers to open Settings.
 
+## Knowledge graph and the full CLI
+
+`/graph <query>` draws a knowledge graph over a query's results — the most
+connected documents and people, clusters, and the strongest links — and
+**Open interactive graph** shows it as a force-directed page in an editor tab.
+
+Every other CLI command is listed in `/help` and the slash picker, tagged
+**CLI**; typing one offers **Run in terminal**, which opens the full Glean
+Code REPL and runs it there.
+
+| | Dark | Light |
+| --- | --- | --- |
+| | ![/graph in the panel, dark theme](docs/img/graph-dark.png) | ![/graph in the panel, light theme](docs/img/graph-light.png) |
+
+<sub>Generated from [docs/sessions/graph.md](docs/sessions/graph.md).</sub>
+
 ## Connecting to a real instance
 
 ```

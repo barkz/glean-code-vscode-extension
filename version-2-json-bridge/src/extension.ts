@@ -23,6 +23,9 @@ export function activate(context: vscode.ExtensionContext): GleanCodeApi {
     vscode.commands.registerCommand("gleanCodeBridge.focusChat", async () => {
       await vscode.commands.executeCommand("gleanCodeBridge.chatView.focus");
     }),
+    vscode.commands.registerCommand("gleanCodeBridge.openCliTerminal", () => {
+      provider.runInCliTerminal();
+    }),
     vscode.commands.registerCommand("gleanCodeBridge.restartBridge", () => {
       bridge.restart();
       provider.notify("system", "Bridge restarting...");

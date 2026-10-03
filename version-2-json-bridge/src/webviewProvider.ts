@@ -1,10 +1,29 @@
 import * as vscode from "vscode";
+import { randomBytes } from "node:crypto";
+import { prepareGraphHtml } from "./graphPage";
 import { PythonBridge } from "./pythonBridge";
-import { SLASH_COMMANDS, isWebLink, maskSecrets, parseLine } from "./slashCommands";
+import {
+  CliCommand,
+  SLASH_COMMANDS,
+  SlashSpec,
+  isWebLink,
+  maskSecrets,
+  mergeCatalog,
+  parseLine,
+} from "./slashCommands";
+
+/** Graph pages kept for "Open interactive graph"; older ones are dropped. */
+const MAX_GRAPHS = 20;
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   static readonly viewId = "gleanCodeBridge.chatView";
   private view?: vscode.WebviewView;
+  /** The panel's commands plus the CLI's (cliOnly); see mergeCatalog. */
+  private catalog: SlashSpec[] = SLASH_COMMANDS;
+  /** Graph HTML by id. Kept host-side so the sidebar never holds the pages. */
+  private graphs = new Map<string, { title: string; html: string }>();
+  private nextGraph = 1;
+  private cliTerminal?: vscode.Terminal;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -13,6 +32,68 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this.bridge.on("ready", (status) => this.post({ kind: "ready", status }));
     this.bridge.on("log", (msg) => this.post({ kind: "log", text: msg }));
     this.bridge.on("exit", (code) => this.post({ kind: "exit", code }));
+    context.subscriptions.push(
+      vscode.window.onDidCloseTerminal((t) => {
+        if (t === this.cliTerminal) this.cliTerminal = undefined;
+      }),
+    );
+  }
+
+  /**
+   * Replace the built-in list with the CLI's catalogue. An older CLI without
+   * the `commands` method just keeps the built-in list.
+   */
+  private async loadCatalog() {
+    try {
+      const r = await this.bridge.call<{ commands: CliCommand[] }>("commands", {});
+      this.catalog = mergeCatalog(SLASH_COMMANDS, r.commands || []);
+      this.post({ kind: "slashCommands", items: this.catalog });
+    } catch {
+      /* keep SLASH_COMMANDS */
+    }
+  }
+
+  /** Commands the panel offers: its own plus the CLI's, once loaded. */
+  commandCatalog(): SlashSpec[] {
+    return this.catalog;
+  }
+
+  /**
+   * Open the full CLI REPL in a terminal (reusing one that is still open) and
+   * optionally type a command into it. This is how the panel reaches every
+   * CLI command it doesn't render itself.
+   */
+  runInCliTerminal(line?: string): vscode.Terminal | undefined {
+    if (!this.cliTerminal || this.cliTerminal.exitStatus !== undefined) {
+      const opts = this.bridge.cliTerminalOptions();
+      if ("error" in opts) {
+        this.notify("stderr", opts.error);
+        vscode.window.showErrorMessage(opts.error);
+        return undefined;
+      }
+      this.cliTerminal = vscode.window.createTerminal(opts);
+    }
+    this.cliTerminal.show();
+    if (line) this.cliTerminal.sendText(line);
+    return this.cliTerminal;
+  }
+
+  /** Show a graph from an earlier /graph result in an editor tab. */
+  openGraph(id: string): vscode.WebviewPanel | undefined {
+    const g = this.graphs.get(id);
+    if (!g) {
+      this.notify("stderr", "That graph is no longer available — run /graph again.");
+      return undefined;
+    }
+    const panel = vscode.window.createWebviewPanel(
+      "gleanCodeBridge.graph",
+      g.title,
+      vscode.ViewColumn.Active,
+      // The page is self-contained: scripts on, no local files, no network.
+      { enableScripts: true, localResourceRoots: [] },
+    );
+    panel.webview.html = prepareGraphHtml(g.html, randomNonce(), panel.webview.cspSource);
+    return panel;
   }
 
   private post(msg: any) {
@@ -44,10 +125,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     view.webview.onDidReceiveMessage(async (msg) => {
       switch (msg?.type) {
         case "ready":
-          this.post({ kind: "slashCommands", items: SLASH_COMMANDS });
-          this.bridge.start().catch((e) =>
-            this.post({ kind: "notify", level: "stderr", text: (e as Error).message }),
-          );
+          this.post({ kind: "slashCommands", items: this.catalog });
+          this.bridge
+            .start()
+            .then(() => this.loadCatalog())
+            .catch((e) => this.post({ kind: "notify", level: "stderr", text: (e as Error).message }));
+          break;
+        case "openGraph":
+          if (typeof msg.id === "string") this.openGraph(msg.id);
+          break;
+        case "runInTerminal":
+          if (typeof msg.line === "string") this.runInCliTerminal(msg.line);
           break;
         case "send":
           if (typeof msg.line === "string" && msg.line.trim()) {
@@ -108,11 +196,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         this.post({ kind: "clear" });
         return;
       case "local":
-        this.post({ kind: "result", method: parsed.method, payload: parsed.payload });
+        // /help lists the full catalogue, not just what the parser knows.
+        this.post({ kind: "result", method: parsed.method, payload: { items: this.catalog } });
         return;
-      case "error":
+      case "error": {
+        const known = parsed.unknown && this.catalog.find((c) => c.cmd === parsed.unknown);
+        if (known && known.cliOnly) {
+          // A real CLI command the panel doesn't render: offer the terminal
+          // rather than calling it unknown. The masked line is what's shown;
+          // the button sends the line as typed.
+          this.post({
+            kind: "result",
+            method: "cliOnly",
+            payload: { cmd: known.cmd, summary: known.summary, line: trimmed },
+          });
+          return;
+        }
         this.post({ kind: "result", method: "error", payload: { error: parsed.error } });
         return;
+      }
       case "call":
         return this.callMethod(parsed.method, parsed.params);
     }
@@ -121,6 +223,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async callMethod(method: string, params: Record<string, unknown>) {
     try {
       const result = await this.bridge.call(method, params);
+      if (method === "graph" && result && typeof result.html === "string") {
+        // Keep the page here; the card only needs an id to ask for it.
+        const id = String(this.nextGraph++);
+        this.graphs.set(id, { title: `Graph: ${result.query}`, html: result.html });
+        if (this.graphs.size > MAX_GRAPHS) this.graphs.delete(this.graphs.keys().next().value!);
+        const { html: _html, ...card } = result;
+        this.post({ kind: "result", method, payload: { ...card, graph_id: id } });
+        return;
+      }
       this.post({ kind: "result", method, payload: result });
     } catch (e) {
       this.post({
@@ -173,9 +284,5 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 }
 
 function randomNonce(): string {
-  const bytes = new Uint8Array(16);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return randomBytes(16).toString("hex");
 }

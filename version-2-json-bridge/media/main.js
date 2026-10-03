@@ -182,14 +182,101 @@
 
   function renderHelp(p) {
     const card = el("div", { className: "gc-msg gc-card" });
+    const own = p.items.filter(function (i) { return !i.cliOnly; });
+    const cli = p.items.filter(function (i) { return i.cliOnly; });
+    function table(items) {
+      const tbl = el("table", { className: "gc-kv" });
+      for (const item of items) {
+        tbl.appendChild(
+          el("tr", null, [el("td", null, item.cmd), el("td", null, item.summary)]),
+        );
+      }
+      return tbl;
+    }
     card.appendChild(el("h4", null, "Commands"));
-    const tbl = el("table", { className: "gc-kv" });
-    for (const item of p.items) {
-      tbl.appendChild(
-        el("tr", null, [el("td", null, item.cmd), el("td", null, item.summary)]),
+    card.appendChild(table(own));
+    if (cli.length) {
+      card.appendChild(el("h4", { className: "gc-subhead" }, "In the CLI terminal"));
+      card.appendChild(
+        el("div", { className: "gc-muted" },
+           "These run in the full Glean Code CLI. Typing one here offers to open it in a terminal."),
+      );
+      card.appendChild(table(cli));
+    }
+    appendNode(card);
+  }
+
+  function actionButton(label, onClick) {
+    return el("button", { className: "gc-action", type: "button", onClick: onClick }, label);
+  }
+
+  function renderGraph(p) {
+    const card = el("div", { className: "gc-msg gc-card" });
+    card.appendChild(el("h4", null, "Graph"));
+    card.appendChild(
+      el("div", { className: "gc-result-meta" }, (p.query || "") + (p.source ? "  ·  " + p.source : "")),
+    );
+    if (p.local_index) {
+      card.appendChild(el("div", { className: "gc-muted" }, "Drawn from your personal index, not Glean."));
+    }
+    const s = p.summary;
+    if (!s) {
+      card.appendChild(el("div", null, "No results for that query, so there is nothing to graph."));
+      appendNode(card);
+      return;
+    }
+    const k = s.by_kind || {};
+    const kinds = [
+      [k.doc, "documents"], [k.person, "people"], [k.source, "sources"], [k.container, "containers"],
+    ].filter(function (x) { return x[0]; }).map(function (x) { return x[0] + " " + x[1]; });
+    card.appendChild(
+      el("div", null, s.nodes + " nodes · " + s.edges + " edges" + (kinds.length ? " — " + kinds.join(", ") : "")),
+    );
+
+    if (s.hubs && s.hubs.length) {
+      card.appendChild(el("h4", { className: "gc-subhead" }, "Most connected"));
+      const ul = el("ul", { className: "gc-graph-list" });
+      for (const h of s.hubs) {
+        ul.appendChild(el("li", null, [h.label, el("span", { className: "gc-muted" }, "  " + h.kind + " · " + h.degree)]));
+      }
+      card.appendChild(ul);
+    }
+    if (s.clusters && s.clusters.length) {
+      card.appendChild(el("h4", { className: "gc-subhead" }, "Clusters"));
+      const ul = el("ul", { className: "gc-graph-list" });
+      for (const c of s.clusters) {
+        ul.appendChild(el("li", null, [c.size + " nodes around ", el("strong", null, c.anchor)]));
+      }
+      card.appendChild(ul);
+    }
+    if (s.strongest && s.strongest.length) {
+      card.appendChild(el("h4", { className: "gc-subhead" }, "Strongest links"));
+      const ul = el("ul", { className: "gc-graph-list" });
+      for (const l of s.strongest) {
+        ul.appendChild(el("li", null, [l.a + " ↔ " + l.b, el("div", { className: "gc-muted" }, "shared: " + l.why)]));
+      }
+      card.appendChild(ul);
+    }
+    if (p.graph_id) {
+      card.appendChild(
+        actionButton("Open interactive graph", function () {
+          vscode.postMessage({ type: "openGraph", id: p.graph_id });
+        }),
       );
     }
-    card.appendChild(tbl);
+    appendNode(card);
+  }
+
+  function renderCliOnly(p) {
+    const card = el("div", { className: "gc-msg gc-card" });
+    card.appendChild(el("h4", null, "Runs in the CLI"));
+    card.appendChild(el("div", null, p.cmd + " is a Glean Code CLI command this panel doesn't render yet."));
+    if (p.summary) card.appendChild(el("div", { className: "gc-muted" }, p.summary));
+    card.appendChild(
+      actionButton("Run in terminal", function () {
+        vscode.postMessage({ type: "runInTerminal", line: p.line });
+      }),
+    );
     appendNode(card);
   }
 
@@ -219,6 +306,8 @@
     if (method === "status" || method === "login" || method === "logout" || method === "set_mode")
       return renderStatus(payload);
     if (method === "help") return renderHelp(payload);
+    if (method === "graph") return renderGraph(payload);
+    if (method === "cliOnly") return renderCliOnly(payload);
     if (method === "error") return renderResultError("error", payload);
     return renderJson(method, payload);
   }
@@ -260,6 +349,7 @@
         },
         [
           el("span", { className: "gc-suggest-cmd" }, item.cmd),
+          item.cliOnly ? el("span", { className: "gc-tag", title: "Runs in the CLI terminal" }, "CLI") : null,
           el("span", { className: "gc-suggest-summary" }, item.summary || ""),
         ],
       );

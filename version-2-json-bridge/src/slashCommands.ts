@@ -10,6 +10,15 @@ export interface SlashSpec {
   cmd: string;
   summary: string;
   example?: string;
+  /** A CLI command this panel can't run itself; it offers a terminal instead. */
+  cliOnly?: boolean;
+}
+
+/** One entry of the CLI's own command catalogue (bridge method `commands`). */
+export interface CliCommand {
+  name: string;
+  summary: string;
+  usage?: string;
 }
 
 export const SLASH_COMMANDS: SlashSpec[] = [
@@ -20,6 +29,7 @@ export const SLASH_COMMANDS: SlashSpec[] = [
   { cmd: "/mode", summary: "Set mode: /mode <live|mock|auto|local>" },
   { cmd: "/chat", summary: "Chat with Glean: /chat <message>" },
   { cmd: "/search", summary: "Search the index: /search <query>", example: "/search quarterly planning" },
+  { cmd: "/graph", summary: "Knowledge graph over a query's results: /graph <query>", example: "/graph checkout incident" },
   { cmd: "/autocomplete", summary: "Autocomplete suggestions" },
   { cmd: "/datasources.list", summary: "List visible datasources" },
   { cmd: "/datasources.status", summary: "Datasource status: /datasources.status <name>" },
@@ -111,9 +121,25 @@ export function isWebLink(url: string): boolean {
   }
 }
 
+/**
+ * The panel's commands followed by every other CLI command, marked cliOnly.
+ *
+ * The CLI's catalogue is the source of truth for what exists, so /help and
+ * autocomplete can't drift from it; the panel's own list only says which of
+ * those it renders natively. Panel-only commands (/help, /clear) are kept.
+ */
+export function mergeCatalog(panel: SlashSpec[], cli: CliCommand[]): SlashSpec[] {
+  const own = new Set(panel.map((c) => c.cmd));
+  const rest = cli
+    .filter((c) => c.name && !own.has("/" + c.name))
+    .map((c) => ({ cmd: "/" + c.name, summary: c.summary, cliOnly: true }));
+  return [...panel, ...rest];
+}
+
 /** Boolean flags per command; see `tokenize`. */
 const BOOLEAN_FLAGS: Record<string, ReadonlySet<string>> = {
   "/chat": new Set(["new"]),
+  "/graph": new Set(["no-terms"]),
   "/insights": new Set(["assistant", "agents", "all"]),
 };
 
@@ -125,8 +151,9 @@ export type ParsedCommand =
   | { kind: "local"; method: "help"; payload: { items: SlashSpec[] } }
   /** Wipe the transcript. */
   | { kind: "clear" }
-  /** Usage error — show it without contacting the bridge. */
-  | { kind: "error"; error: string };
+  /** Usage error — show it without contacting the bridge. `unknown` is set
+   *  when the command itself isn't one the panel knows. */
+  | { kind: "error"; error: string; unknown?: string };
 
 /**
  * Parse one line of user input. Bare text (no leading slash) is a chat message.
@@ -196,6 +223,33 @@ export function parseLine(line: string): ParsedCommand | null {
         params: { query: positional.join(" "), page_size: size, datasource: str(flags.datasource) },
       };
     }
+    case "/graph": {
+      if (positional.length === 0) return { kind: "error", error: "Usage: /graph <query>" };
+      if (flags.html !== undefined) {
+        return {
+          kind: "error",
+          error: "--html isn't needed here: use \"Open interactive graph\" on the result card.",
+        };
+      }
+      const num = (k: string) => (flags[k] !== undefined ? Number(flags[k]) : undefined);
+      for (const k of ["page-size", "min-shared"]) {
+        const v = num(k);
+        if (v !== undefined && !Number.isFinite(v)) {
+          return { kind: "error", error: `--${k} must be a number, got "${flags[k]}"` };
+        }
+      }
+      return {
+        kind: "call",
+        method: "graph",
+        params: {
+          query: positional.join(" "),
+          page_size: num("page-size"),
+          datasource: str(flags.datasource),
+          min_shared: num("min-shared"),
+          no_terms: flags["no-terms"] === true || undefined,
+        },
+      };
+    }
     case "/autocomplete":
       if (positional.length === 0) return { kind: "error", error: "Usage: /autocomplete <query>" };
       return { kind: "call", method: "autocomplete", params: { query: positional.join(" ") } };
@@ -259,6 +313,6 @@ export function parseLine(line: string): ParsedCommand | null {
     case "/pins.list":
       return { kind: "call", method: "pins.list", params: {} };
     default:
-      return { kind: "error", error: `Unknown command: ${head}. Try /help.` };
+      return { kind: "error", error: `Unknown command: ${head}. Try /help.`, unknown: head };
   }
 }

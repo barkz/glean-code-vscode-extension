@@ -92,6 +92,10 @@ webview renders a card per method
   state through `_cfg()` / `_cli()`, never the module globals.
 - **Links open only if they are http(s).** URLs come from indexed content;
   route any new "open this" action through `isWebLink`.
+- **HTML pages from the CLI open under a nonce CSP.** `/graph`'s page is the
+  CLI's own `render_html`; `prepareGraphHtml` adds a nonce to every script
+  and a no-network CSP. The page itself stays in the host (`graphs`), never in
+  the sidebar or a recorded session.
 - **Secrets are masked before display.** Anything that echoes, stores or
   records a typed line goes through `maskSecrets` first.
 
@@ -99,12 +103,19 @@ webview renders a card per method
   host, in `tools/record.mjs` under plain Node, and in the integration test.
   Keep it pure — parsing returns a description of work, it never performs I/O.
 - **The JSON contract is the contract.** Never parse the CLI's formatted
-  output in v2; that is v1's job and v1's fragility. To add a command: add a
-  method to `METHODS` in `glean_bridge.py`, a case in `parseLine`, and a
-  renderer in `main.js` if the default JSON card isn't good enough.
-- **Adding a bridge method requires all three edits.** A method with no
-  `parseLine` case is unreachable; a `parseLine` case with no bridge method
-  produces `unknown method: x` at runtime.
+  output in v2; that is v1's job and v1's fragility. To render a CLI command
+  natively: add a method to `METHODS` in `glean_bridge.py`, a case in
+  `parseLine`, an entry in `SLASH_COMMANDS`, a line in the test's
+  `SAMPLE_LINES`, and a renderer in `main.js` if the default JSON card isn't
+  good enough.
+- **The CLI's catalogue is the list of what exists.** `/help` and the picker
+  come from the bridge's `commands` method (the CLI's `DOCS`) merged with
+  `SLASH_COMMANDS` by `mergeCatalog`; anything not in `SLASH_COMMANDS` is
+  marked CLI-only and offered in a terminal (`runInCliTerminal`). So a new
+  CLI command shows up with no change here — native rendering is the opt-in.
+- **Two drift checks guard the lists.** The integration test fails if a
+  `SLASH_COMMANDS` entry no longer exists in the CLI (how `/announcements.list`
+  broke), or if `parseLine` produces a method the bridge doesn't serve.
 - **The panel is narrow.** Anything rendering a URL, doc id or token needs
   `overflow-wrap: anywhere` or it overflows a 260px sidebar.
 - **Don't declare two functions with the same name in `main.js`.** It is one

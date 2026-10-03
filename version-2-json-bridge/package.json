@@ -2,7 +2,7 @@
   "name": "glean-code-bridge",
   "displayName": "Glean Code (JSON Bridge)",
   "description": "VS Code panel that talks to glean_code.client over a JSON-RPC subprocess.",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "publisher": "barkz",
   "engines": {
     "vscode": "^1.85.0"
@@ -57,6 +57,11 @@
       {
         "command": "gleanCodeBridge.status",
         "title": "Glean Code: Status",
+        "category": "Glean Code"
+      },
+      {
+        "command": "gleanCodeBridge.openCliTerminal",
+        "title": "Glean Code: Open CLI Terminal",
         "category": "Glean Code"
       }
     ],
