@@ -60,6 +60,9 @@ export async function run(): Promise<void> {
 
 async function runChecks(): Promise<void> {
   log("--- glean-code-bridge integration test ---");
+  // scripts/run-tests.mjs checks this line, so a matrix leg that asked for
+  // one VS Code but ran another fails instead of passing on the wrong build.
+  log(`        vscode = ${vscode.version}`);
 
   const ext = vscode.extensions.getExtension<GleanCodeApi>(EXT_ID);
   check("extension is present", !!ext, `no extension with id ${EXT_ID}`);
