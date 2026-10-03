@@ -172,6 +172,12 @@ code. If you add checks, use `log()` so they land in the report — a bare
 ## Versioning and releases
 
 Only `version-2-json-bridge` is released. Its version is `0.2.<PR>`, the same
+
+Version numbers have gaps, and that is expected. Issues and pull requests share
+one counter on GitHub, so a filed issue consumes a number no version will use —
+issue #8 is why `0.2.7` is followed by `0.2.9`. `tools/set_version.mjs` reads the
+newest issue-or-PR number and adds one, so it infers the right number without
+help; do not "correct" a gap by reusing a skipped number.
 scheme as glean-code-cli: the patch component is the pull request number, so a
 `.vsix` maps to exactly one PR. Set it before opening the PR, so the first CI
 run passes:

@@ -89,11 +89,24 @@ table can stay as history.
 
 ---
 
-## Known wrinkle: two version sequences
+## Known wrinkle: version numbers have gaps
 
-Both repositories use `0.2.<PR>`, but pull request numbers are per-repository, so
-the extension's `0.2.5` and the CLI's `0.2.41` are unrelated numbers that look
-related. Harmless, confusing in a support conversation. Release notes name the
+Both repositories version as `0.2.<PR>`. GitHub issues and pull requests share
+one number counter, so filing an issue consumes a number that no version will
+ever use. Issue #8 (Windows support) is why this repository went from `0.2.7`
+straight to `0.2.9` — nothing is missing.
+
+`tools/set_version.mjs` already accounts for this: it reads the newest
+issue-or-PR number and adds one, rather than counting pull requests. The CI
+`version` job compares against the actual pull request number, so gaps cannot
+break it either.
+
+The scheme only needs to be monotonic and to point at one pull request. It is
+both. Gaps are the cost of using issues, and they are cheaper than the
+alternative, which is a version number that maps to nothing.
+
+Separately: PR numbers are per-repository, so this extension's `0.2.9` and the
+CLI's `0.2.41` are unrelated numbers that look related. Release notes name the
 bundled CLI release explicitly, which is the thing that actually matters.
 
 ## Known wrinkle: the bundle lags the CLI
