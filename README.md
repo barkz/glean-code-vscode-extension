@@ -1,5 +1,10 @@
 # Glean Code — VS Code extension(s)
 
+> [!NOTE]
+> 🎉 **Released.** The Glean Code extension is out for VS Code, Cursor and VSCodium —
+> [download the latest release](https://github.com/barkz/glean-code-vscode-extension/releases/latest)
+> or install it with one line (see [Install](#install)).
+
 A Glean assistant in your sidebar: chat, search, and the admin commands from
 [`glean-code-cli`](https://github.com/barkz/glean-code-cli), rendered as cards
 in a VS Code panel.
@@ -13,6 +18,18 @@ CLI. **[version-2-json-bridge](version-2-json-bridge/) is the one to install.**
 
 <sub>Both images are generated from [docs/sessions/getting-started.md](docs/sessions/getting-started.md)
 by `tools/replay.mjs`, using the extension's own renderer. See [docs/REPLAY.md](docs/REPLAY.md).</sub>
+
+## In the editor
+
+![Glean Code panel in VS Code](docs/img/vscode-sidebar.png)
+
+`/graph` opens as an interactive tab — click a node for its edges, drag to move, scroll to zoom:
+
+![/graph opened as an interactive graph in VS Code](docs/img/vscode-graph.png)
+
+The same extension in VSCodium:
+
+![Glean Code panel in VSCodium](docs/img/vscodium-sidebar.png)
 
 ## Install
 
