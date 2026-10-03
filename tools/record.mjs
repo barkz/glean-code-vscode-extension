@@ -29,7 +29,7 @@ if (!fs.existsSync(slashModule)) {
   console.error(`Missing ${slashModule}\nRun: cd version-2-json-bridge && npm install && npm run compile`);
   process.exit(1);
 }
-const { parseLine } = require(slashModule);
+const { parseLine, maskSecrets } = require(slashModule);
 
 // ---------- args ----------
 
@@ -179,21 +179,24 @@ const steps = [];
 for (const line of lines) {
   const parsed = parseLine(line);
   if (!parsed) continue;
+  // Session files are committed, so a /login token must not reach one.
+  const input = maskSecrets(line);
 
   if (parsed.kind === "call") {
     const res = await call(parsed.method, parsed.params);
+    const params = "token" in parsed.params ? { ...parsed.params, token: "***" } : parsed.params;
     steps.push({
-      input: line,
-      call: { method: parsed.method, params: parsed.params },
+      input,
+      call: { method: parsed.method, params },
       ...(res.error ? { error: res.error } : { result: res.result }),
       renderAs: res.error ? "error" : parsed.method,
     });
   } else if (parsed.kind === "local") {
-    steps.push({ input: line, result: parsed.payload, renderAs: parsed.method });
+    steps.push({ input, result: parsed.payload, renderAs: parsed.method });
   } else if (parsed.kind === "clear") {
-    steps.push({ input: line, clear: true });
+    steps.push({ input, clear: true });
   } else if (parsed.kind === "error") {
-    steps.push({ input: line, error: parsed.error, renderAs: "error", local: true });
+    steps.push({ input, error: parsed.error, renderAs: "error", local: true });
   }
 }
 

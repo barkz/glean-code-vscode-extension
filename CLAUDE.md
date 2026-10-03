@@ -76,6 +76,18 @@ webview renders a card per method
 
 ## Conventions that matter
 
+- **Bridge calls run concurrently.** `glean_bridge.py` answers on a thread
+  pool, so responses arrive out of order and are matched by `id`. `login`,
+  `logout` and `set_mode` are the exception: they run in arrival order and
+  swap in a new config rather than editing it, and every other request runs
+  with the config that was current when it arrived. A new method that changes
+  session state must go in `_ORDERED` and use `_apply`; everything else reads
+  state through `_cfg()` / `_cli()`, never the module globals.
+- **Links open only if they are http(s).** URLs come from indexed content;
+  route any new "open this" action through `isWebLink`.
+- **Secrets are masked before display.** Anything that echoes, stores or
+  records a typed line goes through `maskSecrets` first.
+
 - **`slashCommands.ts` must not import `vscode`.** It runs in the extension
   host, in `tools/record.mjs` under plain Node, and in the integration test.
   Keep it pure — parsing returns a description of work, it never performs I/O.
@@ -102,14 +114,25 @@ webview renders a card per method
 
 1. `gleanCodeBridge.cliPath` setting
 2. `GLEAN_CODE_HOME`
-3. whether the configured interpreter can already `import glean_code`
-4. the zipapp `python3 install.py` drops at `~/.local/bin/glean` (importable
-   as a `PYTHONPATH` entry — it is a zip)
-5. a `glean-code-cli` clone in or beside the workspace, or beside the extension
+3. `bundled/glean-code.pyz` inside the extension — the CLI zipapp that
+   `scripts/bundle-cli.mjs` vendors on every `npm run package`
+4. whether the configured interpreter can already `import glean_code`
+5. the zipapp `python3 install.py` drops at `~/.local/bin/glean`, or a `glean`
+   on `PATH` (importable as a `PYTHONPATH` entry — it is a zip)
+6. a `glean-code-cli` clone in or beside the workspace, or beside the extension
 
-Only step 5 works from a source checkout, and only steps 1–4 work for an
-installed `.vsix`. If you change discovery, update `install.sh`'s runtime check
-and `tools/record.mjs`, which mirror this list.
+An installed `.vsix` always stops at step 3, so it runs the client version its
+JSON contract was built against; `bundled/cli-version.json` records which, and
+the extension warns at activation if the loaded client differs.
+
+**Gotcha when developing:** `bundled/` survives a package, so after any
+`npm run package` an F5 run also stops at step 3 and serves the *packaged*
+CLI, not your working tree. Set `gleanCodeBridge.cliPath` to your checkout, or
+`npm run clean`, to develop against live CLI changes.
+
+v1 (`replManager.ts`) has the same list without step 3. If you change
+discovery, update `install.sh`'s runtime check and `tools/record.mjs`, which
+mirror parts of this list.
 
 ## Testing
 

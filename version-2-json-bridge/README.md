@@ -42,6 +42,11 @@ Every line in either direction is a JSON object terminated by `\n`.
 {"event": "log", "data": "traceback ..."}
 ```
 
+Requests run concurrently, so responses can arrive out of order — match them
+by `id`. `login`, `logout` and `set_mode` run in arrival order, and every other
+request runs with the session that was current when it arrived, so a request
+sent after `/mode mock` is always answered in mock mode.
+
 Methods exposed (matching the REST surface in `glean_code.client`):
 
 ```
@@ -52,7 +57,7 @@ insights,
 agents.list, agents.run,
 tools.list, tools.call,
 docs.get, people.get,
-announcements.list, collections.list, pins.list,
+collections.list, pins.list,
 feedback
 ```
 
@@ -117,14 +122,18 @@ registered, spawns `python/glean_bridge.py`, and round-trips `status`, `search`,
 
 1. The `gleanCodeBridge.cliPath` setting.
 2. `GLEAN_CODE_HOME`.
-3. Whether the configured interpreter can already `import glean_code`.
-4. The zipapp `python3 install.py` installs at `~/.local/bin/glean` — a zipapp
-   is a zip, so Python imports straight out of it via `PYTHONPATH`.
-5. A `glean-code-cli` clone in or beside the workspace, or beside the extension.
+3. `bundled/glean-code.pyz` — the CLI zipapp `npm run package` vendors into
+   the extension, so an installed `.vsix` needs no configuration.
+4. Whether the configured interpreter can already `import glean_code`.
+5. The zipapp `python3 install.py` installs at `~/.local/bin/glean`, or `glean`
+   on `PATH` — a zipapp is a zip, so Python imports straight out of it via
+   `PYTHONPATH`.
+6. A `glean-code-cli` clone in or beside the workspace, or beside the extension.
 
-Only step 5 works from a source checkout, and only steps 1–4 work once the
-extension is installed as a `.vsix`. If nothing matches, the panel reports what
-it tried and offers to open Settings.
+After a package, `bundled/` also exists in your source tree, so F5 runs stop
+at step 3 too. Set `gleanCodeBridge.cliPath` or run `npm run clean` to develop
+against a working tree. If nothing matches, the panel reports what it tried
+and offers to open Settings.
 
 ## Why this is nicer than scraping the REPL
 

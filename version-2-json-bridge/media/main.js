@@ -292,8 +292,8 @@
   function send(line) {
     line = line.trim();
     if (!line) return;
-    pastInputs.push(line);
-    pastIdx = pastInputs.length;
+    // History is recorded from the host's echo, which arrives with secrets
+    // masked; pushing the raw line here would keep a /login token around.
     vscode.postMessage({ type: "send", line: line });
     input.value = "";
     suggest.hidden = true;
@@ -371,6 +371,8 @@
         break;
       case "echo":
         renderUser(m.text);
+        pastInputs.push(m.text);
+        pastIdx = pastInputs.length;
         break;
       case "result":
         dispatchResult(m.method, m.payload || {});

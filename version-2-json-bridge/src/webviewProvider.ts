@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { PythonBridge } from "./pythonBridge";
-import { SLASH_COMMANDS, parseLine } from "./slashCommands";
+import { SLASH_COMMANDS, isWebLink, maskSecrets, parseLine } from "./slashCommands";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   static readonly viewId = "gleanCodeBridge.chatView";
@@ -55,7 +55,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           break;
         case "openUrl":
-          if (typeof msg.url === "string") vscode.env.openExternal(vscode.Uri.parse(msg.url));
+          if (typeof msg.url === "string") this.openLink(msg.url);
           break;
         case "copy":
           if (typeof msg.text === "string") {
@@ -84,10 +84,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /** Open a result or citation link; see `isWebLink` for why only http(s). */
+  private openLink(url: string) {
+    if (!isWebLink(url)) {
+      this.notify("stderr", `Not opening ${url}: only http and https links are opened.`);
+      return;
+    }
+    vscode.env.openExternal(vscode.Uri.parse(url, true));
+  }
+
   private async handleLine(line: string) {
     const trimmed = line.trim();
     if (!trimmed) return;
-    this.post({ kind: "echo", text: trimmed });
+    // The webview shows this and keeps it as up-arrow history, so a token
+    // typed into /login must not survive into either.
+    this.post({ kind: "echo", text: maskSecrets(trimmed) });
 
     const parsed = parseLine(trimmed);
     if (!parsed) return;

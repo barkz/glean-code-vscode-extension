@@ -29,7 +29,6 @@ export declare interface PythonBridge {
  */
 export class PythonBridge extends EventEmitter implements vscode.Disposable {
   private proc: ChildProcessWithoutNullStreams | null = null;
-  private buf = "";
   private pending = new Map<string, Pending>();
   private nextId = 1;
   private outputChannel: vscode.OutputChannel;
@@ -298,13 +297,23 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
       proc.stderr.setEncoding("utf-8");
 
       let resolvedReady = false;
+      // Per-process, so output still in flight from a process being replaced
+      // can't splice into the next one's lines.
+      let buf = "";
+      // restart() spawns the replacement before the old process has finished
+      // exiting. Every handler below checks it still belongs to the current
+      // process, so the old one's late `exit` can't reject the new process's
+      // requests or drop the reference to it (which orphaned it and made the
+      // next call spawn a third).
+      const current = () => this.proc === proc;
 
       proc.stdout.on("data", (chunk: string) => {
-        this.buf += chunk;
+        if (!current()) return;
+        buf += chunk;
         let idx: number;
-        while ((idx = this.buf.indexOf("\n")) >= 0) {
-          const line = this.buf.slice(0, idx);
-          this.buf = this.buf.slice(idx + 1);
+        while ((idx = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, idx);
+          buf = buf.slice(idx + 1);
           if (!line.trim()) continue;
           try {
             const obj = JSON.parse(line);
@@ -337,6 +346,12 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
       });
 
       proc.on("exit", (code) => {
+        if (!current()) {
+          // Already replaced or stopped; stop() settled its pending calls.
+          this.outputChannel.appendLine(`Previous bridge exited with code ${code}`);
+          if (!resolvedReady) reject(new Error(`bridge stopped before ready (code ${code})`));
+          return;
+        }
         this.outputChannel.appendLine(`Bridge exited with code ${code}`);
         for (const [, p] of this.pending) {
           if (p.timer) clearTimeout(p.timer);
@@ -351,7 +366,10 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
 
       proc.on("error", (err) => {
         this.outputChannel.appendLine(`Failed to spawn bridge: ${err.message}`);
-        this.startPromise = null;
+        if (current()) {
+          this.proc = null;
+          this.startPromise = null;
+        }
         reject(err);
       });
 
@@ -363,8 +381,13 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
   /**
    * Call a method on the bridge. Resolves with the JSON result,
    * or rejects with an Error containing the bridge's error string.
+   *
+   * The default timeout sits above glean_code's own 60s HTTP timeout, so a
+   * slow tenant surfaces as the client's "Network error calling /chat"
+   * rather than a bare timeout here. Calls run concurrently in the bridge,
+   * so one that times out no longer delays the calls behind it.
    */
-  async call<T = any>(method: string, params: Record<string, unknown> = {}, timeoutMs = 60000): Promise<T> {
+  async call<T = any>(method: string, params: Record<string, unknown> = {}, timeoutMs = 90000): Promise<T> {
     if (!this.isAlive()) await this.start();
     if (!this.proc) throw new Error("bridge not running");
 
@@ -389,7 +412,6 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
 
   stop(): void {
     this.startPromise = null;
-    this.buf = "";
     for (const [, pend] of this.pending) {
       if (pend.timer) clearTimeout(pend.timer);
       pend.reject(new Error("bridge stopped"));
