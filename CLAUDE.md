@@ -162,15 +162,18 @@ code. If you add checks, use `log()` so they land in the report — a bare
 
 Only `version-2-json-bridge` is released. Its version is `0.2.<PR>`, the same
 scheme as glean-code-cli: the patch component is the pull request number, so a
-`.vsix` maps to exactly one PR. Bump it inside the PR once the number exists:
+`.vsix` maps to exactly one PR. Set it before opening the PR, so the first CI
+run passes:
 
 ```bash
-node tools/set_version.mjs          # infers the number from the open PR via gh
+node tools/set_version.mjs          # this branch's open PR, else the next PR number
 node tools/set_version.mjs 7        # or set it explicitly
 ```
 
-The `version` job in `release.yml` fails a PR whose `package.json` (or
-`package-lock.json`) version does not match its number.
+With no open PR it predicts the number (newest issue-or-PR + 1). The `version`
+job in `release.yml` fails a PR whose `package.json` (or `package-lock.json`)
+version does not match its number — if an issue was opened in between, run the
+script again on the branch and it uses the real PR number.
 
 A release bundles the glean-code-cli release pinned in
 `version-2-json-bridge/cli-release.txt`, downloaded from that release's

@@ -3,12 +3,17 @@
  * Set the extension version to 0.2.<pr>, the scheme glean-code-cli uses too.
  *
  * The patch component is the number of the pull request that introduces the
- * change, so a .vsix is traceable straight back to a PR. That number only
- * exists once the PR is open, so the bump happens inside the PR and the
- * `version` job in .github/workflows/release.yml enforces it.
+ * change, so a .vsix is traceable straight back to a PR. The `version` job in
+ * .github/workflows/release.yml enforces it.
  *
  *   node tools/set_version.mjs 7     # -> 0.2.7
- *   node tools/set_version.mjs       # infer from the open PR via gh
+ *   node tools/set_version.mjs       # this branch's open PR, or the number
+ *                                    # the next one will get
+ *
+ * Run it before opening the PR: issues and PRs share one counter, so the next
+ * PR is the newest issue-or-PR number plus one, and the first CI run passes
+ * instead of failing the version job. If an issue is opened in between, the
+ * version job says so and a second run (now finding the open PR) fixes it.
  *
  * Only version-2-json-bridge is released; version-1-repl keeps its own version.
  */
@@ -24,16 +29,25 @@ function current() {
   return JSON.parse(readFileSync(path.join(EXT, "package.json"), "utf8")).version;
 }
 
-function inferPr() {
-  const r = spawnSync("gh", ["pr", "view", "--json", "number", "-q", ".number"], {
-    cwd: EXT,
-    encoding: "utf8",
-    timeout: 30000,
-  });
+function gh(args) {
+  const r = spawnSync("gh", args, { cwd: EXT, encoding: "utf8", timeout: 30000 });
   if (r.error) die("gh is unavailable — pass the PR number explicitly");
-  const pr = (r.stdout || "").trim();
-  if (r.status !== 0 || !pr) die("no open PR for this branch — open one first, or pass the number");
-  return pr;
+  return r.status === 0 ? (r.stdout || "").trim() : "";
+}
+
+/** This branch's open PR, else the number the next issue or PR will get. */
+function inferPr() {
+  const open = gh(["pr", "view", "--json", "number,state", "-q", 'select(.state == "OPEN") | .number']);
+  if (open) {
+    console.log(`using this branch's PR #${open}`);
+    return open;
+  }
+  // The issues endpoint lists PRs too, newest first. Discussions would share
+  // the counter as well; they are off for this repo.
+  const latest = gh(["api", "repos/{owner}/{repo}/issues?state=all&per_page=1", "-q", ".[0].number"]);
+  const next = String((Number(latest) || 0) + 1);
+  console.log(`no open PR for this branch — the next PR will be #${next}`);
+  return next;
 }
 
 function die(msg) {
