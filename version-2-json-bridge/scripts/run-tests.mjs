@@ -20,6 +20,9 @@ import { runTests } from "@vscode/test-electron";
 
 const EXT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+// Read before the scrub below, which would otherwise delete it with the rest.
+const VERSION = process.env.VSCODE_VERSION || "stable";
+
 // Run from VS Code's integrated terminal, this process inherits
 // ELECTRON_RUN_AS_NODE=1 and the parent's VSCODE_* IPC variables. The first
 // makes the downloaded VS Code start as plain Node ("bad option" for every
@@ -30,10 +33,11 @@ for (const k of Object.keys(process.env)) {
 const scratch = mkdtempSync(path.join(tmpdir(), "glean-test-"));
 const report = path.join(scratch, "report.txt");
 
+console.log(`run-tests: VS Code ${VERSION}`);
 let code = 1;
 try {
   await runTests({
-    version: process.env.VSCODE_VERSION || "stable",
+    version: VERSION,
     extensionDevelopmentPath: EXT,
     extensionTestsPath: path.join(EXT, "out", "test", "index.js"),
     extensionTestsEnv: { GLEAN_TEST_OUTPUT: report },
@@ -57,6 +61,10 @@ try {
 }
 process.stdout.write(text);
 if (!text.includes("--- PASS ---")) code = 1;
+if (VERSION !== "stable" && !text.includes(`vscode = ${VERSION}\n`)) {
+  console.error(`run-tests: asked for VS Code ${VERSION}, but the report shows a different build.`);
+  code = 1;
+}
 
 rmSync(scratch, { recursive: true, force: true });
 process.exit(code);
