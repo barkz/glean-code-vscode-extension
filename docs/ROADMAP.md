@@ -32,29 +32,32 @@ That last row is the gap. Everything below is ordered by how much it moves it.
 
 ---
 
-## 1. Registry publishing
+## 1. Distribution: this repository only
 
-**Open VSX first.** It is what VSCodium, Cursor and other non-Microsoft builds
-read, and it has no corporate gate.
+Decided 2026-10-03: **no marketplace.** Not Open VSX, not the VS Code
+Marketplace. Both were considered and declined — a registry means a publisher
+identity, a namespace, an agreement to accept and a credential to hold, in
+exchange for discoverability this project does not currently need.
 
-The `publish` job now has the step. It supports two credentials and skips with a
-notice when neither is configured, so a release tag never fails for want of one:
+Distribution is therefore the repository itself, and it is done:
 
-- **PAT** — sign in at <https://open-vsx.org>, accept the Eclipse Publisher
-  Agreement, `npx ovsx create-namespace barkz`, then add the token as the
-  `OVSX_TOKEN` repository secret.
-- **Trusted publishing** — configure this repository as a trusted publisher for
-  the `barkz` namespace, then set the `OVSX_TRUSTED` repository variable to
-  `true`. No long-lived secret to rotate; preferred once set up.
+```bash
+curl -fsSL https://raw.githubusercontent.com/barkz/glean-code-vscode-extension/main/get.sh | bash
+```
 
-Both need a one-time account action that CI cannot perform.
+`get.sh` resolves the latest GitHub release, downloads the `.vsix` and installs
+it into every VS Code derivative on `PATH`. Both repositories are public, so it
+needs no authentication. Anyone who would rather not pipe a script into a shell
+can download the `.vsix` from the releases page and run
+`code --install-extension` by hand; the README documents both.
 
-**VS Code Marketplace second.** Much wider reach, but it needs an Azure DevOps
-PAT and a verified publisher. Worth adding after Open VSX proves the pipeline,
-not instead of it.
+A `v*` tag builds the `.vsix`, verifies it against the tag and attaches it to a
+release, so "share the one-liner" and "cut a release" are the same action.
 
-**Done when** someone who has never cloned this repository can install the
-extension in one step.
+**Revisit if** people outside the immediate circle start asking for it, or an
+editor without a `.vsix` sideload path matters. The step to publish was written
+and then removed in the same week — see the git history of
+`.github/workflows/release.yml` if it needs restoring.
 
 ## 2. The Python prerequisite
 

@@ -200,7 +200,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write        # required to create a release
-      id-token: write        # required for Open VSX trusted publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -220,39 +219,6 @@ jobs:
           name: vsix
           path: ${{ runner.temp }}/vsix
 
-      # Open VSX is the primary registry: it is what VSCodium, Cursor and other
-      # non-Microsoft builds read, and it has no corporate gate.
-      #
-      # Two ways in. A PAT in OVSX_TOKEN is the simple one. Trusted publishing
-      # exchanges a short-lived OIDC token instead, so there is no long-lived
-      # secret to leak or rotate — but it only works once the namespace on
-      # open-vsx.org is configured to trust this repository, so it is opt-in via
-      # the OVSX_TRUSTED repository variable.
-      #
-      # With neither configured this skips with a notice: a release tag must not
-      # fail for want of a registry credential.
-      - name: Publish to Open VSX
-        env:
-          OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
-          OVSX_TRUSTED: ${{ vars.OVSX_TRUSTED }}
-          VSIX: ${{ runner.temp }}/vsix/${{ needs.package.outputs.vsix }}
-        run: |
-          if [ -n "${OVSX_TOKEN}" ]; then
-            echo "publishing with a personal access token"
-            npx --yes ovsx publish "${VSIX}" --pat "${OVSX_TOKEN}" --skip-duplicate
-          elif [ "${OVSX_TRUSTED}" = "true" ]; then
-            echo "publishing with OIDC trusted publishing"
-            npx --yes ovsx publish "${VSIX}" --trusted-publishing --skip-duplicate
-          else
-            echo "::notice::Open VSX publish skipped — no credential configured."
-            echo "One-time setup, either:"
-            echo "  PAT      sign in at https://open-vsx.org, accept the Eclipse"
-            echo "           Publisher Agreement, run 'npx ovsx create-namespace barkz',"
-            echo "           then add the token as the OVSX_TOKEN secret."
-            echo "  trusted  configure this repo as a trusted publisher for the"
-            echo "           barkz namespace, then set the OVSX_TRUSTED variable to true."
-            exit 0
-          fi
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
