@@ -67,8 +67,9 @@ error, however well worded.
 
 - Detect at activation and give a platform-specific next step. macOS ships 3.9,
   so most Macs are fine; Windows is the exposed group.
-- State the floor prominently in the marketplace README — the first thing anyone
-  reads, and not the same audience as this repository's README.
+- State the floor prominently in the README's Install section, which is now the
+  only place anyone reads before installing. `get.sh` already checks for an
+  interpreter and prints per-platform guidance when it is missing.
 - Decide explicitly whether Windows is in scope. If it is, this item matters more
   than anything else on this page.
 
