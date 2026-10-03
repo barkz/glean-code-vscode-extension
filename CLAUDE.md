@@ -22,10 +22,12 @@ features go in v2.
 
 ```
 install.sh                    build + install a .vsix into VS Code / Cursor
+.github/workflows/release.yml CI on every PR/push; a v* tag publishes a GitHub Release
 tools/
   record.mjs                  drive the real bridge, write docs/sessions/*.md
   replay.mjs                  render a session into the real webview, screenshot it
   test-extension.sh           run the integration test in a real extension host
+  set_version.mjs             set the extension version to 0.2.<PR>
 docs/
   REPLAY.md                   the session file format
   sessions/*.md               recorded sessions (readable + replayable)
@@ -39,6 +41,9 @@ version-2-json-bridge/
     test/index.ts             integration test (runs inside VS Code)
   python/glean_bridge.py      JSON-RPC server importing glean_code.client
   media/main.{css,js}         the panel renderer
+  scripts/bundle-cli.mjs      vendor the CLI zipapp into bundled/ (checkout or release)
+  scripts/run-tests.mjs       integration test in a downloaded VS Code (what CI runs)
+  cli-release.txt             the glean-code-cli release tag a release bundles
 ```
 
 ## Commands
@@ -48,8 +53,10 @@ version-2-json-bridge/
 ./install.sh --version 1           # same for v1
 cd version-2-json-bridge
 npm install && npm run compile     # build
-npm test                           # integration test in a real extension host
-npm run package                    # -> dist/*.vsix
+npm test                           # integration test in your installed `code`
+npm run test:ci                    # same, in a downloaded VS Code (VSCODE_VERSION=1.85.0 for the floor)
+npm run package                    # -> dist/*.vsix, bundling the CLI from your checkout
+GLEAN_CLI_RELEASE=pinned npm run package   # bundling the pinned CLI release, as CI does
 node ../tools/replay.mjs           # regenerate docs/img/*.png from docs/sessions
 ```
 
@@ -137,13 +144,46 @@ mirror parts of this list.
 ## Testing
 
 `npm test` runs `src/test/index.ts` inside a real VS Code extension host. It
-covers activation, command registration, spawning the Python bridge, and round
-trips for `status` / `search` / `chat` / an unknown method.
+covers activation, command registration, spawning the Python bridge, round
+trips through the JSON protocol, the parser, secret masking, link filtering,
+concurrent calls and restart.
+
+`npm run test:ci` runs the same file in a VS Code that `@vscode/test-electron`
+downloads into `.vscode-test/`; CI runs it on stable and on the `engines.vscode`
+floor (1.85.0) under `xvfb-run`. It clears `ELECTRON_RUN_AS_NODE` and
+`VSCODE_*` first, so it also works from VS Code's own terminal.
 
 The host is detached from the terminal on macOS, so the test writes its report
 to `$GLEAN_TEST_OUTPUT`; `tools/test-extension.sh` prints it and sets the exit
 code. If you add checks, use `log()` so they land in the report — a bare
 `console.log` goes to the detached host and is lost.
+
+## Versioning and releases
+
+Only `version-2-json-bridge` is released. Its version is `0.2.<PR>`, the same
+scheme as glean-code-cli: the patch component is the pull request number, so a
+`.vsix` maps to exactly one PR. Bump it inside the PR once the number exists:
+
+```bash
+node tools/set_version.mjs          # infers the number from the open PR via gh
+node tools/set_version.mjs 7        # or set it explicitly
+```
+
+The `version` job in `release.yml` fails a PR whose `package.json` (or
+`package-lock.json`) version does not match its number.
+
+A release bundles the glean-code-cli release pinned in
+`version-2-json-bridge/cli-release.txt`, downloaded from that release's
+`glean-code.pyz`; `bundle-cli.mjs` refuses an asset whose `__version__`
+disagrees with the tag. Moving to a newer CLI is a one-line PR to that file.
+
+Tags are the release marker. Pushing `v<version>` runs the `publish` job, which
+refuses a tag that disagrees with `package.json`, takes the `.vsix` the
+`package` job built and tested, and creates a GitHub Release with it attached:
+
+```bash
+git tag -a v0.2.7 -m "Glean Code extension v0.2.7" && git push origin v0.2.7
+```
 
 ## Screenshots
 

@@ -17,3 +17,6 @@ node_modules/**
 
 # Integration tests are dev-only
 out/test/**
+
+# Release tooling
+cli-release.txt
