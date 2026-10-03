@@ -44,16 +44,20 @@ Open the panel with **Cmd+Alt+G** (Ctrl+Alt+G on Windows/Linux).
 
 ### How the extension finds the CLI
 
-In order, stopping at the first hit:
+**Version 2 needs no setup:** `./install.sh` builds the `.vsix` with its own
+copy of the CLI inside, and the extension uses that. The order it checks, stopping
+at the first hit:
 
 1. The `gleanCodeBridge.cliPath` setting (`gleanCode.cliPath` for v1).
 2. `GLEAN_CODE_HOME`.
-3. Whether your `python3` can already `import glean_code`.
-4. The zipapp `python3 install.py` installs at `~/.local/bin/glean`.
-5. A `glean-code-cli` clone in or beside your workspace.
+3. The copy bundled inside the extension (v2 only).
+4. Whether your `python3` can already `import glean_code`.
+5. The zipapp `python3 install.py` installs at `~/.local/bin/glean`, or `glean` on `PATH`.
+6. A `glean-code-cli` clone in or beside your workspace.
 
-The simplest setup is to run `python3 install.py` once in your `glean-code-cli`
-checkout — that covers case 4 and the extension needs no configuration at all.
+Set `gleanCodeBridge.cliPath` to use a different CLI checkout than the
+bundled one. For version 1, the simplest setup is running `python3 install.py`
+once in your `glean-code-cli` checkout, which covers step 5.
 
 If none match, the panel tells you what it tried and offers to open Settings.
 

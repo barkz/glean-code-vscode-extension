@@ -103,8 +103,16 @@ done
 
 echo
 say "Checking that the extension will be able to find glean_code"
+# Mirrors PythonBridge.resolveSourceRoot() / ReplManager — see CLAUDE.md.
+if [[ "$VERSION" == 2 ]]; then SETTING="gleanCodeBridge.cliPath"; else SETTING="gleanCode.cliPath"; fi
 FOUND=""
-if python3 -c 'import glean_code' 2>/dev/null; then
+if [[ -n "${GLEAN_CODE_HOME:-}" && ( -d "$GLEAN_CODE_HOME/glean_code" || -f "$GLEAN_CODE_HOME" ) ]]; then
+  FOUND="GLEAN_CODE_HOME ($GLEAN_CODE_HOME)"
+elif [[ "$VERSION" == 2 ]] && unzip -l "$VSIX" 2>/dev/null | grep 'extension/bundled/glean-code.pyz' >/dev/null; then
+  BUNDLED_VER="$(unzip -p "$VSIX" extension/bundled/cli-version.json 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null || echo unknown)"
+  FOUND="the copy bundled in the .vsix (glean_code $BUNDLED_VER)"
+elif python3 -c 'import glean_code' 2>/dev/null; then
   FOUND="python3 imports it directly"
 elif [[ -f "$HOME/.local/bin/glean" ]]; then
   FOUND="the installed zipapp at ~/.local/bin/glean"
@@ -114,10 +122,11 @@ fi
 
 if [[ -n "$FOUND" ]]; then
   echo "    OK — will resolve via $FOUND"
+  echo "    (a '$SETTING' setting, if you have one, takes precedence)"
 else
   warn "glean_code not found yet. Do one of:
     - Run 'python3 install.py' in your glean-code-cli checkout
-    - Set 'gleanCodeBridge.cliPath' in Settings to your checkout
+    - Set '$SETTING' in Settings to your checkout
     - Open glean-code-cli as a folder in the same window"
 fi
 

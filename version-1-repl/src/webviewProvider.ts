@@ -27,7 +27,6 @@ const SLASH_COMMANDS = [
   "/docs.permissions",
   "/entities.list",
   "/people.get",
-  "/announcements.list",
   "/collections.list",
   "/pins.list",
   "/scaffold",
@@ -91,8 +90,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           }
           break;
         case "openUrl":
+          // URLs are scraped from REPL output, i.e. from indexed content, so
+          // only web links are opened — never command:, file: or vscode: URIs.
           if (typeof msg.url === "string") {
-            vscode.env.openExternal(vscode.Uri.parse(msg.url));
+            let uri: vscode.Uri | undefined;
+            try {
+              uri = vscode.Uri.parse(msg.url, true);
+            } catch {
+              uri = undefined;
+            }
+            if (uri && (uri.scheme === "http" || uri.scheme === "https")) {
+              vscode.env.openExternal(uri);
+            } else {
+              vscode.window.showWarningMessage(
+                `Glean Code: not opening ${msg.url} — only http and https links are opened.`,
+              );
+            }
           }
           break;
       }

@@ -10,6 +10,7 @@
 import * as vscode from "vscode";
 import * as fs from "node:fs";
 import type { GleanCodeApi } from "../extension";
+import { SLASH_COMMANDS, isWebLink, maskSecrets, parseLine } from "../slashCommands";
 
 const EXT_ID = "barkz.glean-code-bridge";
 
@@ -99,6 +100,63 @@ async function runChecks(): Promise<void> {
   });
   check("chat returns text", typeof chat?.text === "string" && chat.text.length > 0);
   check("chat returns citations", Array.isArray(chat?.citations) && chat.citations.length > 0);
+
+  // Parser: options are not message text, and boolean flags take no value.
+  const chatCmd = parseLine("/chat who owned the fix? --new --agent abc") as any;
+  check("/chat keeps flags out of the message", chatCmd?.params?.message === "who owned the fix?",
+        JSON.stringify(chatCmd?.params));
+  check("/chat passes --new and --agent", chatCmd?.params?.new === true && chatCmd?.params?.agent === "abc");
+  const chatNew = parseLine("/chat --new what is our pto policy") as any;
+  check("/chat --new does not swallow the next word",
+        chatNew?.params?.message === "what is our pto policy", JSON.stringify(chatNew?.params));
+  const modeCmd = parseLine("/mode local") as any;
+  check("/mode local parses", modeCmd?.kind === "call" && modeCmd?.params?.mode === "local");
+  check("/announcements.list is gone (not in Glean's spec)",
+        !SLASH_COMMANDS.some((c) => c.cmd === "/announcements.list"));
+
+  // Secrets never reach the transcript, input history or a recorded session.
+  const masked = maskSecrets("/login --instance acme.glean.com --token sk-live-123456");
+  check("maskSecrets hides --token", !masked.includes("sk-live-123456") && masked.endsWith("--token ***"),
+        masked);
+  check("maskSecrets keeps secure refs",
+        maskSecrets("/login --token token.secure.client").endsWith("token.secure.client"));
+
+  // Links from indexed content: web links only.
+  check("isWebLink accepts https", isWebLink("https://acme.atlassian.net/wiki/x"));
+  check("isWebLink rejects command:, file:, vscode: and junk",
+        !["command:workbench.action.quit", "file:///etc/passwd", "vscode://settings", "not a url", ""]
+          .some(isWebLink));
+
+  // Calls run concurrently in the bridge: answers arrive out of order and
+  // must still reach the right caller.
+  const [s1, q1, s2] = await Promise.all([
+    api.bridge.call<any>("status", {}),
+    api.bridge.call<any>("search", { query: "checkout incident", page_size: 2 }),
+    api.bridge.call<any>("status", {}),
+  ]);
+  check("concurrent calls each get their own answer",
+        typeof s1?.mode === "string" && Array.isArray(q1?.results) && typeof s2?.mode === "string");
+
+  // restart() spawns the replacement before the old process exits. The old
+  // exit must not reject the new process's calls or orphan it.
+  api.bridge.restart();
+  let afterRestart: any = null;
+  let restartError = "";
+  try {
+    afterRestart = await api.bridge.call("status", {});
+  } catch (e) {
+    restartError = (e as Error).message;
+  }
+  check("a call made during restart succeeds", !!afterRestart, restartError);
+  await new Promise((r) => setTimeout(r, 1000));
+  check("bridge is still alive after the old process exits", api.bridge.isAlive());
+  let laterOk = false;
+  try {
+    laterOk = !!(await api.bridge.call("status", {}));
+  } catch (e) {
+    log(`        ${(e as Error).message}`);
+  }
+  check("calls keep working after restart", laterOk);
 
   // Unknown methods must surface as a rejection carrying the bridge's message.
   let rejected = false;

@@ -131,7 +131,7 @@ Answered by the webview itself; no bridge call.
     },
     {
       "cmd": "/mode",
-      "summary": "Set mode: /mode <live|mock|auto>"
+      "summary": "Set mode: /mode <live|mock|auto|local>"
     },
     {
       "cmd": "/chat",
@@ -181,10 +181,6 @@ Answered by the webview itself; no bridge call.
     {
       "cmd": "/people.get",
       "summary": "Get a person: /people.get <email>"
-    },
-    {
-      "cmd": "/announcements.list",
-      "summary": "List announcements"
     },
     {
       "cmd": "/collections.list",
