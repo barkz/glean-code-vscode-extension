@@ -26,7 +26,7 @@ Feature work is not the constraint. Distribution is.
 | Version | `0.2.<PR>`, matching the CLI repo's scheme |
 | CI | version check, bridge, test matrix, v1 compile check |
 | Tag `v*` | builds the `.vsix`, verifies it against the tag, creates a release |
-| Install today | download a `.vsix` from GitHub releases and sideload it |
+| Install today | `curl … get.sh | bash`, or sideload a `.vsix` from releases |
 
 That last row is the gap. Everything below is ordered by how much it moves it.
 
