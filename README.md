@@ -16,14 +16,35 @@ by `tools/replay.mjs`, using the extension's own renderer. See [docs/REPLAY.md](
 
 ## Install
 
-**From a release:** download the `.vsix` from the
-[latest release](https://github.com/barkz/glean-code-vscode-extension/releases/latest)
-and install it — it carries its own copy of the CLI, so nothing else is needed
-beyond Python 3.9+:
+**One line** — downloads the latest release and installs it into every VS Code,
+Cursor and VSCodium it finds. No clone, no Node, no build:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/barkz/glean-code-vscode-extension/main/get.sh | bash
+```
+
+That pipes a script into your shell, which is worth being wary of. To read it
+first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/barkz/glean-code-vscode-extension/main/get.sh -o get.sh
+less get.sh && bash get.sh
+```
+
+Useful flags: `--editor code` to pick one editor, `--tag v0.2.4` for a specific
+release, `--uninstall` to remove it.
+
+**By hand, if you would rather not run a script:** download the `.vsix` from the
+[latest release](https://github.com/barkz/glean-code-vscode-extension/releases/latest),
+then:
 
 ```bash
 code --install-extension glean-code-bridge-<version>.vsix     # or: cursor / codium
 ```
+
+Either way the extension carries its own copy of the CLI, so the only
+prerequisite is **Python 3.9+** on your `PATH` — a bundled zipapp still needs an
+interpreter. `get.sh` checks for it and tells you if it is missing.
 
 **From source:**
 
