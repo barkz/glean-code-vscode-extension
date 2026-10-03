@@ -10,7 +10,37 @@
 import * as vscode from "vscode";
 import * as fs from "node:fs";
 import type { GleanCodeApi } from "../extension";
-import { SLASH_COMMANDS, isWebLink, maskSecrets, parseLine } from "../slashCommands";
+import { spawnSync } from "node:child_process";
+import { prepareGraphHtml } from "../graphPage";
+import { SLASH_COMMANDS, isWebLink, maskSecrets, mergeCatalog, parseLine } from "../slashCommands";
+
+/** One line per panel command; the drift check below requires full coverage. */
+const SAMPLE_LINES: Record<string, string> = {
+  "/help": "/help",
+  "/status": "/status",
+  "/login": "/login --instance acme.glean.com --token x",
+  "/logout": "/logout",
+  "/mode": "/mode mock",
+  "/chat": "/chat hello",
+  "/search": "/search quarterly planning",
+  "/graph": "/graph checkout incident",
+  "/autocomplete": "/autocomplete quart",
+  "/datasources.list": "/datasources.list",
+  "/datasources.status": "/datasources.status gdrive",
+  "/insights": "/insights",
+  "/agents.list": "/agents.list",
+  "/agents.run": "/agents.run agent-1 hello",
+  "/tools.list": "/tools.list",
+  "/tools.call": "/tools.call t {}",
+  "/docs.get": "/docs.get --id doc-1",
+  "/people.get": "/people.get a@acme.com",
+  "/collections.list": "/collections.list",
+  "/pins.list": "/pins.list",
+  "/clear": "/clear",
+};
+
+/** Commands that exist only in the panel, not in the CLI. */
+const PANEL_ONLY = new Set(["/help", "/clear"]);
 
 const EXT_ID = "barkz.glean-code-bridge";
 
@@ -160,6 +190,65 @@ async function runChecks(): Promise<void> {
     log(`        ${(e as Error).message}`);
   }
   check("calls keep working after restart", laterOk);
+
+  // /graph: parsed, served by the bridge, and openable as a tab.
+  const graphCmd = parseLine("/graph checkout incident --no-terms --page-size 5") as any;
+  check("/graph parses query and flags",
+        graphCmd?.method === "graph" && graphCmd.params.query === "checkout incident" &&
+          graphCmd.params.no_terms === true && graphCmd.params.page_size === 5,
+        JSON.stringify(graphCmd));
+  check("/graph --html points at the card button", (parseLine("/graph q --html out.html") as any)?.kind === "error");
+  const graph = await api.bridge.call<any>("graph", { query: "checkout incident" });
+  check("bridge graph returns a summary", (graph?.summary?.nodes ?? 0) > 0, JSON.stringify(graph?.summary));
+  check("bridge graph returns the CLI's page", typeof graph?.html === "string" && graph.html.includes("<script"));
+  log(`        graph: ${graph?.summary?.nodes} nodes, ${graph?.summary?.edges} edges`);
+
+  const page = prepareGraphHtml(graph.html, "n0nce", "vscode-resource:");
+  const scripts = page.match(/<script\b[^>]*>/g) || [];
+  check("every graph <script> carries the nonce",
+        scripts.length > 0 && scripts.every((t) => t.includes('nonce="n0nce"')), scripts.join(" "));
+  check("graph CSP comes first in <head> and blocks the network",
+        /<head[^>]*><meta http-equiv="Content-Security-Policy" content="default-src 'none';/.test(page));
+
+  const prov = api.provider as any;
+  prov.graphs.set("t1", { title: "Graph: test", html: graph.html });
+  const panel = prov.openGraph("t1") as vscode.WebviewPanel | undefined;
+  check("Open interactive graph opens a tab", !!panel && panel.webview.html.includes("Content-Security-Policy"));
+  panel?.dispose();
+
+  // The CLI's catalogue, and the two checks that stop the panel drifting from
+  // the CLI (how /announcements.list broke) or from the bridge.
+  const cat = await api.bridge.call<{ commands: { name: string }[]; bridge_methods: string[] }>("commands", {});
+  const cliNames = new Set((cat?.commands || []).map((c) => "/" + c.name));
+  check("CLI catalogue lists /graph and /flow", cliNames.has("/graph") && cliNames.has("/flow"));
+  const stale = SLASH_COMMANDS.filter((c) => !PANEL_ONLY.has(c.cmd) && !cliNames.has(c.cmd)).map((c) => c.cmd);
+  check("every panel command still exists in the CLI", stale.length === 0, `not in the CLI: ${stale.join(", ")}`);
+  const uncovered = SLASH_COMMANDS.filter((c) => !SAMPLE_LINES[c.cmd]).map((c) => c.cmd);
+  check("every panel command has a sample line in this test", uncovered.length === 0, uncovered.join(", "));
+  const methods = new Set(cat?.bridge_methods || []);
+  const missing = Object.values(SAMPLE_LINES)
+    .map((l) => parseLine(l) as any)
+    .filter((p) => p?.kind === "call" && !methods.has(p.method))
+    .map((p) => p.method);
+  check("every method the parser calls exists in the bridge", missing.length === 0, `missing: ${missing.join(", ")}`);
+
+  const merged = mergeCatalog(SLASH_COMMANDS, cat.commands as any);
+  const flow = merged.find((c) => c.cmd === "/flow");
+  check("CLI-only commands are merged in and marked", !!flow?.cliOnly);
+  check("panel commands are not marked CLI-only", !merged.find((c) => c.cmd === "/search")?.cliOnly);
+  check("the merged catalogue has no duplicates", new Set(merged.map((c) => c.cmd)).size === merged.length);
+  const flowLine = parseLine("/flow show") as any;
+  check("a CLI-only command is reported as unknown to the panel", flowLine?.unknown === "/flow");
+
+  // The terminal fallback starts the same glean_code the bridge uses.
+  const term = api.bridge.cliTerminalOptions() as any;
+  check("CLI terminal runs python -m glean_code",
+        !("error" in term) && JSON.stringify(term.shellArgs) === JSON.stringify(["-m", "glean_code"]),
+        JSON.stringify(term));
+  const imports = spawnSync(term.shellPath, ["-c", "import glean_code"], {
+    env: { ...process.env, ...(term.env || {}) },
+  });
+  check("the CLI terminal's environment imports glean_code", imports.status === 0);
 
   // Unknown methods must surface as a rejection carrying the bridge's message.
   let rejected = false;

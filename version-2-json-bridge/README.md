@@ -58,7 +58,9 @@ agents.list, agents.run,
 tools.list, tools.call,
 docs.get, people.get,
 collections.list, pins.list,
-feedback
+feedback,
+graph,       # /graph: summary + the CLI's interactive HTML page
+commands     # the CLI's command catalogue (DOCS) + the bridge's own methods
 ```
 
 You can smoke-test the bridge directly:
@@ -79,12 +81,19 @@ EOF
   `+` / `-` feedback buttons that call the `feedback` method.
 - **Live status bar** in the panel header that updates when the bridge
   reports `ready` and after each `/status`, `/login`, `/logout`, `/mode`.
-- **Slash command picker** with summaries (since we don't pipe the REPL,
-  the descriptions live in TypeScript and are kept in sync with the
-  bridge methods).
+- **Knowledge graph** (`/graph <query>`): a card with the most connected
+  documents and people, clusters and strongest links, plus **Open interactive
+  graph**, which shows the CLI's own force-directed page in an editor tab
+  under a strict CSP (no network, nonce-only scripts).
+- **Every CLI command, one way or another.** `/help` and the slash picker come
+  from the CLI's own catalogue, so they list everything the CLI can do.
+  Commands the panel doesn't render are tagged **CLI**; typing one offers
+  **Run in terminal**, which opens the full Glean Code REPL (the same
+  `glean_code` the bridge uses) and types the command into it.
 - **Commands**:
   - `Glean Code: Focus Chat` — `cmd+alt+g` / `ctrl+alt+g`
   - `Glean Code: Search...` — `cmd+alt+s` / `ctrl+alt+s`
+  - `Glean Code: Open CLI Terminal` — the full REPL in a terminal
   - `Glean Code: Chat...`, `Glean Code: Status`, `Glean Code: Restart Bridge`
 
 ## Configuration
@@ -156,11 +165,10 @@ and offers to open Settings.
   `chat` with the surrounding code as context, plus Workspace Edit
   routing for proposed changes. It's a feasible direction; out of scope
   here.
-- The bridge mirrors the REST surface of `glean_code.client`, but it is
-  not a full IDE assistant. If the CLI added a non-REST feature (say,
-  workspace-aware ranking driven by open files), the bridge would need
-  a matching method — there's no fall-through to "just run the slash
-  command".
+- The panel renders a subset of the CLI's commands natively. The rest are
+  listed (from the CLI's catalogue) and run in a terminal, so nothing is
+  unreachable — but a command only gets cards, buttons and links once it has
+  a bridge method, a `parseLine` case and a renderer.
 
 ## Layout
 

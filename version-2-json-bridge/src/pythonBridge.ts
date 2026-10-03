@@ -244,6 +244,31 @@ export class PythonBridge extends EventEmitter implements vscode.Disposable {
     };
   }
 
+  /**
+   * How to start the full Glean Code CLI REPL in a terminal, using the same
+   * glean_code the bridge resolves. The panel renders a subset of commands;
+   * this is the way to every other one, so nothing in the CLI is unreachable.
+   */
+  cliTerminalOptions(): vscode.TerminalOptions | { error: string } {
+    const cfg = vscode.workspace.getConfiguration("gleanCodeBridge");
+    const python = cfg.get<string>("pythonPath") || "python3";
+    const extraEnv = cfg.get<Record<string, string>>("extraEnv") || {};
+    const resolved = this.resolveSourceRoot(python);
+    if ("error" in resolved) return { error: resolved.error.split("\n")[0] };
+    const env: Record<string, string> = { ...extraEnv };
+    if (resolved.pythonPath) {
+      env.PYTHONPATH =
+        resolved.pythonPath +
+        (process.env.PYTHONPATH ? path.delimiter + process.env.PYTHONPATH : "");
+    }
+    return {
+      name: "Glean Code CLI",
+      shellPath: python,
+      shellArgs: ["-m", "glean_code"],
+      env,
+    };
+  }
+
   start(): Promise<void> {
     if (this.startPromise) return this.startPromise;
     if (this.isAlive()) return Promise.resolve();

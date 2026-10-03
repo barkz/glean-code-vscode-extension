@@ -269,6 +269,56 @@ def pins_list(_: Dict[str, Any]) -> Dict[str, Any]:
     return _cli().pins_list()
 
 
+def graph(p: Dict[str, Any]) -> Dict[str, Any]:
+    """Knowledge graph over one query's results, as the CLI's /graph builds it.
+
+    Glean has no graph endpoint: glean_code.graph synthesises nodes and edges
+    from a search response. The panel shows `summary`; `html` is the CLI's own
+    self-contained interactive page, opened in an editor tab on request.
+    """
+    try:
+        from glean_code import graph as _graph
+    except ImportError:
+        raise ValueError("this glean_code has no graph support (it arrived in 0.2.37)") from None
+    query = p.get("query") or ""
+    if not query:
+        raise ValueError("query is required")
+    resp = _cli().search(query, page_size=int(p.get("page_size") or 25),
+                         datasource=p.get("datasource"))
+    results = resp.get("results") or []
+    cfg = _cfg()
+    # Same labels as the CLI's /graph: say which index the graph was drawn from.
+    source = {"mock": "mock corpus", "local": "personal index"}.get(
+        cfg.effective_mode, cfg.instance or "live")
+    out: Dict[str, Any] = {"query": query, "source": source,
+                           "local_index": bool(resp.get("localIndex"))}
+    if not results:
+        return dict(out, summary=None, html=None)
+    built = _graph.build(
+        results, query=query, source_label=source,
+        min_shared=int(p.get("min_shared") or _graph.DEFAULT_MIN_SHARED),
+        with_terms=not p.get("no_terms"),
+    )
+    return dict(out, summary=_graph.summarize(built), html=_graph.render_html(built))
+
+
+def commands(_: Dict[str, Any]) -> Dict[str, Any]:
+    """The CLI's command catalogue, so the panel's /help and autocomplete come
+    from the CLI instead of a list that drifts, plus which methods this bridge
+    serves (the integration test checks the panel only calls those)."""
+    try:
+        from glean_code.help_docs import DOCS
+    except ImportError:
+        DOCS = {}
+    return {
+        "commands": [
+            {"name": name, "summary": doc.get("summary", ""), "usage": doc.get("usage", "")}
+            for name, doc in sorted(DOCS.items())
+        ],
+        "bridge_methods": sorted(METHODS),
+    }
+
+
 def feedback(p: Dict[str, Any]) -> Dict[str, Any]:
     return _cli().feedback(
         p.get("tracking_token") or "",
@@ -297,6 +347,8 @@ METHODS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "collections.list": collections_list,
     "pins.list": pins_list,
     "feedback": feedback,
+    "graph": graph,
+    "commands": commands,
 }
 
 

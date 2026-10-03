@@ -29,7 +29,7 @@ if (!fs.existsSync(slashModule)) {
   console.error(`Missing ${slashModule}\nRun: cd version-2-json-bridge && npm install && npm run compile`);
   process.exit(1);
 }
-const { parseLine, maskSecrets } = require(slashModule);
+const { parseLine, maskSecrets, mergeCatalog, SLASH_COMMANDS } = require(slashModule);
 
 // ---------- args ----------
 
@@ -83,10 +83,15 @@ function isImportRoot(p) {
   return false;
 }
 
+// Same order as PythonBridge.resolveSourceRoot(): the copy bundled with the
+// extension comes before anything installed on this machine, so a recording
+// shows the CLI the extension actually ships — not, say, an old ~/.local/bin
+// zipapp that predates the command being recorded.
 function resolveSourceRoot() {
   const candidates = [
     cliPath,
     process.env.GLEAN_CODE_HOME,
+    path.join(EXT, "bundled", "glean-code.pyz"),
     path.join(os.homedir(), ".local", "bin", "glean"),
     path.resolve(REPO, "..", "glean-code-cli"),
     path.resolve(REPO, "..", "..", "glean-code-cli"),
@@ -106,12 +111,18 @@ if (!sourceRoot) {
 
 // ---------- bridge plumbing ----------
 
+// Recordings are committed, so they must be reproducible and must never touch
+// a live tenant. glean_code reads its mode and credentials from
+// ~/.gleancode/config.json, so the bridge gets an empty HOME: no config, no
+// token, mock mode — whatever your real config says.
+const isolatedHome = fs.mkdtempSync(path.join(os.tmpdir(), "glean-record-home-"));
 const env = {
   ...process.env,
   PYTHONUNBUFFERED: "1",
   PYTHONPATH: sourceRoot + (process.env.PYTHONPATH ? path.delimiter + process.env.PYTHONPATH : ""),
-  // Recordings must be reproducible and must never touch a live tenant.
-  GLEAN_MODE: "mock",
+  HOME: isolatedHome,
+  USERPROFILE: isolatedHome,
+  PYTHONPYCACHEPREFIX: path.join(isolatedHome, "pycache"),
 };
 
 const proc = spawn(process.env.PYTHON || "python3", ["-u", path.join(EXT, "python", "glean_bridge.py")], {
@@ -174,7 +185,18 @@ const fence = (lang, body) => "```" + lang + "\n" + body + "\n```";
 const json = (v) => JSON.stringify(v, null, 2);
 
 const readyStatus = await ready;
+console.log(`record: glean_code ${readyStatus.client_version || "?"} from ${sourceRoot}`);
+if (readyStatus.mode !== "mock") {
+  console.error(`record: the bridge came up in ${readyStatus.mode} mode, not mock — refusing to record.`);
+  proc.kill("SIGTERM");
+  process.exit(1);
+}
 const steps = [];
+
+// The same catalogue the panel loads, so /help and CLI-only commands record
+// exactly as the panel renders them.
+const catRes = await call("commands", {});
+const catalog = catRes.result ? mergeCatalog(SLASH_COMMANDS, catRes.result.commands || []) : SLASH_COMMANDS;
 
 for (const line of lines) {
   const parsed = parseLine(line);
@@ -184,6 +206,11 @@ for (const line of lines) {
 
   if (parsed.kind === "call") {
     const res = await call(parsed.method, parsed.params);
+    if (parsed.method === "graph" && res.result && res.result.html) {
+      // The host keeps the page and hands the card an id; so does the recording.
+      const { html: _html, ...card } = res.result;
+      res.result = { ...card, graph_id: "recorded" };
+    }
     const params = "token" in parsed.params ? { ...parsed.params, token: "***" } : parsed.params;
     steps.push({
       input,
@@ -192,16 +219,22 @@ for (const line of lines) {
       renderAs: res.error ? "error" : parsed.method,
     });
   } else if (parsed.kind === "local") {
-    steps.push({ input, result: parsed.payload, renderAs: parsed.method });
+    steps.push({ input, result: { items: catalog }, renderAs: parsed.method });
   } else if (parsed.kind === "clear") {
     steps.push({ input, clear: true });
   } else if (parsed.kind === "error") {
-    steps.push({ input, error: parsed.error, renderAs: "error", local: true });
+    const known = parsed.unknown && catalog.find((c) => c.cmd === parsed.unknown);
+    if (known && known.cliOnly) {
+      steps.push({ input, result: { cmd: known.cmd, summary: known.summary, line: input }, renderAs: "cliOnly" });
+    } else {
+      steps.push({ input, error: parsed.error, renderAs: "error", local: true });
+    }
   }
 }
 
 proc.stdin.end();
 proc.kill("SIGTERM");
+fs.rmSync(isolatedHome, { recursive: true, force: true });
 
 // ---------- emit markdown ----------
 
@@ -211,6 +244,7 @@ parts.push(`session: ${name}`);
 parts.push(`title: ${title}`);
 parts.push("extension: version-2-json-bridge");
 parts.push(`mode: ${readyStatus.mode}`);
+parts.push(`cli-version: ${readyStatus.client_version || "unknown"}`);
 parts.push("recorded-with: tools/record.mjs");
 parts.push("---");
 parts.push("");

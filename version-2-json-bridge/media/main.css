@@ -301,3 +301,41 @@ table.gc-kv td:first-child {
   overflow-x: auto;
   overflow-wrap: anywhere;
 }
+
+/* ---------- graph card, CLI-only card, help sections ---------- */
+
+.gc-subhead {
+  margin-top: 10px !important;
+}
+
+.gc-muted {
+  color: var(--gc-muted);
+  font-size: 11px;
+}
+
+.gc-graph-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.gc-graph-list li {
+  margin: 3px 0;
+}
+
+.gc-action {
+  margin-top: 10px;
+  background: var(--gc-button-bg);
+  color: var(--gc-button-fg);
+  border: 0;
+  border-radius: 3px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.gc-action:hover {
+  background: var(--gc-button-hover);
+}
