@@ -102,13 +102,16 @@
     "package": "mkdir -p dist && vsce package --no-dependencies --out dist/",
     "clean": "rm -rf out dist bundled",
     "test": "../tools/test-extension.sh",
-    "bundle:cli": "node scripts/bundle-cli.mjs"
+    "test:ci": "node scripts/run-tests.mjs",
+    "bundle:cli": "node scripts/bundle-cli.mjs",
+    "bundle:cli:release": "node scripts/bundle-cli.mjs --release"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0",
-    "@vscode/vsce": "^3.2.0"
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.3.0"
   },
   "license": "MIT",
   "icon": "resources/icon.png",

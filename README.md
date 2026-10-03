@@ -16,6 +16,17 @@ by `tools/replay.mjs`, using the extension's own renderer. See [docs/REPLAY.md](
 
 ## Install
 
+**From a release:** download the `.vsix` from the
+[latest release](https://github.com/barkz/glean-code-vscode-extension/releases/latest)
+and install it — it carries its own copy of the CLI, so nothing else is needed
+beyond Python 3.9+:
+
+```bash
+code --install-extension glean-code-bridge-<version>.vsix     # or: cursor / codium
+```
+
+**From source:**
+
 ```bash
 git clone https://github.com/barkz/glean-code-vscode-extension.git
 cd glean-code-vscode-extension
@@ -100,9 +111,14 @@ inline code completion or agentic file editing.
 cd version-2-json-bridge
 npm install
 npm run compile
-npm test              # integration test inside a real VS Code extension host
-npm run package       # -> dist/glean-code-bridge-0.1.0.vsix
+npm test              # integration test inside your installed VS Code
+npm run test:ci       # same, in a VS Code it downloads (what CI runs)
+npm run package       # -> dist/glean-code-bridge-<version>.vsix
 ```
+
+Releases are cut by pushing a `v<version>` tag; CI tests, packages and attaches
+the `.vsix` to a GitHub Release. See "Versioning and releases" in
+[CLAUDE.md](CLAUDE.md).
 
 Press **F5** in either extension folder to launch an Extension Development Host.
 
@@ -122,7 +138,8 @@ knowing before changing anything.
 ```
 install.sh                  build + install a .vsix
 CLAUDE.md                   architecture and conventions
-tools/                      record.mjs, replay.mjs, test-extension.sh
+.github/workflows/          CI and the tag-driven release
+tools/                      record.mjs, replay.mjs, test-extension.sh, set_version.mjs
 docs/
   REPLAY.md                 session file format
   sessions/                 recorded sessions (readable + replayable)
